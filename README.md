@@ -26,3 +26,12 @@ straw-process-pile \
     --text-chunk-size 1024 \
     --pile-subsets "Books3,Gutenberg (PG-19),OpenWebText2,Pile-CC,Wikipedia (en)"
 ```
+
+
+## Slurm
+
+First modify [straw_pile.sh](slurm/straw_pile.sh) to your needs. Then run:
+
+```bash
+for i in $(seq -f "%02g" 0 29); do sbatch straw_pile.sh $i; done
+```
