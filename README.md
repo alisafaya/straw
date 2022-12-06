@@ -1,4 +1,6 @@
-# Straw: A preprocessing and filtering tool for the [Pile](https://pile.eleuther.ai/)
+# Straw
+
+A preprocessing and filtering tool for the [Pile](https://pile.eleuther.ai/)
 
 ## Installation
 
