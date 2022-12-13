@@ -50,9 +50,9 @@ def process_books3(raw_book) -> List[str]:
     # Split into chapters and paragraphs
     chapters = re.compile(r"\n\n\n+", re.MULTILINE).split(book)
     chapters = [
-        re.compile("\n\n", re.MULTILINE).split(chapter)
+        re.compile("\n", re.MULTILINE).split(chapter)
         for chapter in chapters
-        if len(chapter) > 100
+        if len(chapter) > 5
     ]
 
     # Remove redundant chapters (ratio of non alphabetics,
@@ -60,10 +60,9 @@ def process_books3(raw_book) -> List[str]:
     chapters = [list(filter(filter_pargraphs, chapter)) for chapter in chapters]
 
     # Join paragraphs
-    chapters = [rstrip(re.sub(r"\ +", " ", ". ".join(chapter))) for chapter in chapters]
+    chapters = [rstrip("\n".join(chapter)).strip() for chapter in chapters]
 
     # Clean double periods
-    chapters = [re.sub(r"\.\ ?\.", ".", chapter) for chapter in chapters]
-    chapters = [rstrip(re.sub(r"\ +", " ", chapter)) for chapter in chapters]
+    chapters = [rstrip(re.sub(r"\ +", " ", chapter)).strip() for chapter in chapters]
 
     return chapters

@@ -59,12 +59,12 @@ def process_gutenberg(raw_book) -> List[str]:
     chapters = re.compile("\n\n\n+|\*\ *\*\ *\*\ *\*\ *\*\ *", re.MULTILINE).split(book)
 
     # Split chapters into paragraphs
-    chapters = list(map(re.compile("\n\n", re.MULTILINE).split, chapters))
+    chapters = list(map(re.compile("\n", re.MULTILINE).split, chapters))
 
     # Fix paragraph formatting by removing word wrap.
     chapters = [
         [
-            re.sub(r"\n(?=[^\n])", " ", paragraph).strip()
+            re.sub(r"(?!.{50,})\n(?=[^\n])", " ", paragraph).strip()
             for paragraph in chapter
             if paragraph.strip() and not paragraph.isupper()
         ]
@@ -72,7 +72,7 @@ def process_gutenberg(raw_book) -> List[str]:
     ]
 
     # Join paragraphs
-    chapters = [rstrip(re.sub(r"\ +", " ", ". ".join(chapter))) for chapter in chapters]
+    chapters = [rstrip("\n".join(chapter)).strip() for chapter in chapters]
 
     # Remove lists
     chapters = [
@@ -91,8 +91,7 @@ def process_gutenberg(raw_book) -> List[str]:
     # or shorter chapters maybe, contains any of the keywords)
     chapters = [chapter for chapter in chapters if filter_pargraphs(chapter)]
 
-    # Clean double periods
-    chapters = [re.sub(r"\.\ ?\.", ".", chapter) for chapter in chapters]
-    chapters = [rstrip(re.sub(r"\ +", " ", chapter)) for chapter in chapters]
+    # Clean whitespaces
+    chapters = [rstrip(re.sub(r"\ +", " ", chapter)).strip() for chapter in chapters]
 
     return chapters

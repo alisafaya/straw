@@ -94,7 +94,7 @@ class StrawProcessor(object):
 
             results.append(
                 json.dumps(
-                    {"subset": subset_name, "text": paragraphs}, ensure_ascii=False
+                    {"subset": subset_name, "text": "\n".join(paragraphs)}, ensure_ascii=False
                 )
             )
 

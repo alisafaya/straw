@@ -23,7 +23,7 @@ def filter_pargraphs(paragraph):
     return (
         len(re.findall(r"[a-zA-Z]", paragraph)) > (len(paragraph) / 3)
         and not any(keyword in paragraph for keyword in KEYWORDS)
-        and len(paragraph) > 100
+        and len(paragraph) > 5
     )
 
 
