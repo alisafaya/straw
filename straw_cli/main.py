@@ -2,6 +2,7 @@ import json
 import argparse
 import contextlib
 import itertools
+import hashlib
 
 import multiprocessing as mp
 
@@ -48,7 +49,7 @@ class StrawProcessor(object):
 
     def process(self, lines):
 
-        results = []
+        hashes, results = [], []
         for line in lines:
             try:
                 if line is None:
@@ -92,14 +93,19 @@ class StrawProcessor(object):
             if total_len < self.min_len:
                 continue
 
+            text = "\n".join(paragraphs)
+            text_hash = hashlib.md5((text.encode())).hexdigest()
+
             results.append(
                 json.dumps(
-                    {"subset": subset_name, "text": "\n".join(paragraphs)}, ensure_ascii=False
+                    {"subset": subset_name, "text": text, "hash": text_hash},
+                    ensure_ascii=False,
                 )
             )
+            hashes.append(text_hash)
 
         if len(results) > 0:
-            return "\n".join(results)
+            return hashes, results
 
         return ""
 
@@ -163,12 +169,31 @@ def cli_main():
         default="Books3,Gutenberg (PG-19),OpenWebText2,Pile-CC,Wikipedia (en)",
         help="Comma separated list of Pile subsets to keep and process",
     )
+    argparser.add_argument(
+        "--deduplicate",
+        type=str,
+        default="",
+        help="""Path to save hashlist: 
+        if path not found, hashlist will be created. 
+        If path found, hashlist will be loaded and used to deduplicate. 
+        If path is empty, no deduplication will be performed.""",
+    )
 
     args = argparser.parse_args()
     total_docs = (
         args.total_docs // args.read_chunk_size if args.total_docs is not None else None
     )
 
+    if args.deduplicate:
+        import os
+        import hashlib
+        import pickle
+
+        if os.path.exists(args.deduplicate):
+            with open(args.deduplicate, "rb") as f:
+                hashset = pickle.load(f)
+        else:
+            hashset = set()
 
     with contextlib.ExitStack() as stack:
         input = stack.enter_context(open(args.input_jsonl, "r", encoding="utf-8"))
@@ -180,11 +205,28 @@ def cli_main():
         processed_docs = pool.imap_unordered(
             straw_processor.process,
             itertools.zip_longest(*[input] * args.read_chunk_size),
-            chunksize=8
+            chunksize=8,
         )
 
+        duplicates = 0
         for doc_jsons in tqdm(
             processed_docs, desc="Processing docs", total=total_docs,
         ):
             if doc_jsons:
-                print(doc_jsons, file=output, flush=True)
+                if args.deduplicate:
+                    for doc_hash, doc_json in zip(*doc_jsons):
+                        if doc_hash not in hashset:
+                            print(doc_json, file=output)
+                            hashset.add(doc_hash)
+                        else:
+                            duplicates += 1
+                else:
+                    print("\n".join(doc_jsons[1]), file=output)
+
+        if args.deduplicate:
+            import pickle
+
+            with open(args.deduplicate, "wb") as f:
+                pickle.dump(hashset, f)
+
+    print(f"Found {duplicates} duplicates")

@@ -37,6 +37,7 @@ def process_jsonl(jsonline, processor: Callable) -> str:
 
 naive_segmenter = re.compile(r"(\.\"|\.\)|\.|\?|\!)(?![\)\'\"\.])")
 
+
 def naive_sentence_split(line, max_len):
     current_position, segments = 0, []
     sentence_iterator = naive_segmenter.finditer(line)
