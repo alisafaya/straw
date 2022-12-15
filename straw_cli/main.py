@@ -110,9 +110,6 @@ class StrawProcessor(object):
                             "subset": subset_name,
                             "text": text,
                             "hash": text_hash,
-                            "ratio": float(
-                                redundancy_filter.get_token_char_ratio([text])[0]
-                            ),
                         },
                         ensure_ascii=False,
                     )
@@ -131,9 +128,6 @@ class StrawProcessor(object):
                                 "subset": subset_name,
                                 "text": chunk,
                                 "hash": chunk_hash,
-                                "ratio": float(
-                                    redundancy_filter.get_token_char_ratio([chunk])
-                                ),
                             },
                             ensure_ascii=False,
                         )
