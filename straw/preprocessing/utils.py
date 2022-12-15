@@ -51,11 +51,11 @@ def naive_sentence_split(line, max_len):
         )
         segments.append(
             line[
-                current_position : end_position.end() if end_position else max_len
+                current_position : end_position.end() if end_position else (current_position + max_len)
             ].strip()
         )
         current_position = (
-            end_position.end() if end_position else current_position + max_len
+            end_position.end() if end_position else (current_position + max_len)
         )
 
     return segments
