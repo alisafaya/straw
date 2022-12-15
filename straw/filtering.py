@@ -4,7 +4,10 @@ import numpy as np
 from tokenizers import Tokenizer
 from typing import List, Union
 
+import sentencepiece
+
 tokenizer_path = os.path.join(os.path.dirname(__file__), "word_tokenizer.json")
+spm_path = os.path.join(os.path.dirname(__file__), "sp.model")
 
 
 class LanguageFilter:
@@ -36,3 +39,33 @@ class LanguageFilter:
 
         unk_ratios = self.get_unk_ratios(lines)
         return lines[unk_ratios < self.unk_threshold]
+
+
+class RedundancyFilter:
+    def __init__(self, threshold=0.25):
+        self.spm = sentencepiece.SentencePieceProcessor(spm_path)
+        self.threshold = threshold
+
+    def get_token_char_ratio(self, lines: List[str]) -> np.ndarray:
+        """
+        Get the token/character ratio for each line in lines.
+        """
+        ratios = np.array(
+            [
+                len(tokens) / len(chars)
+                for tokens, chars in zip(self.spm.encode(lines), lines)
+            ]
+        )
+        return ratios
+
+    def __call__(self, lines: Union[List[str], np.ndarray]) -> np.ndarray:
+        """
+        Filters out lines that have a token/character ratio above the threshold.
+        Returns a boolean array of the same length as lines. 
+        Where True means valid document.
+        """
+        if isinstance(lines, list):
+            lines = np.array(lines, dtype=object)
+
+        ratios = self.get_token_char_ratio(lines)
+        return lines[ratios < self.threshold]

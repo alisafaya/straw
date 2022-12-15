@@ -9,7 +9,7 @@ import multiprocessing as mp
 from tqdm import tqdm
 
 from straw.normalizer import TextNormalizer
-from straw.filtering import LanguageFilter
+from straw.filtering import LanguageFilter, RedundancyFilter
 from straw.preprocessing import (
     process_gutenberg,
     process_books3,
@@ -36,19 +36,15 @@ class StrawProcessor(object):
             if subset not in self.preprocessors:
                 raise ValueError("Subset {} not supported".format(subset))
 
-        self.chunk_length = self.args.text_chunk_size
-        self.min_len = self.args.min_text_length
-        self.max_unk_ratio = self.args.max_unk_ratio
-        self.chunk_text = self.args.chunk_text
-
     def initialize(self):
         global normalizer
         global language_filter
+        global redundancy_filter
         normalizer = TextNormalizer()
         language_filter = LanguageFilter()
+        redundancy_filter = RedundancyFilter()
 
     def process(self, lines):
-
         hashes, results = [], []
         for line in lines:
             try:
@@ -63,12 +59,12 @@ class StrawProcessor(object):
                 )
                 raise e
 
-            if subset_name not in self.subsets or len(text) < self.min_len:
+            if subset_name not in self.subsets or len(text) < self.args.min_text_length:
                 continue
 
             # Apply language filter
-            unk_ratio = language_filter.get_unk_ratios([text])
-            if unk_ratio > self.max_unk_ratio:
+            unk_ratio = language_filter.get_unk_ratios([text])[0]
+            if unk_ratio > self.args.max_unk_ratio:
                 continue
 
             # Apply preprocessing according to subset
@@ -78,31 +74,71 @@ class StrawProcessor(object):
             paragraphs = normalizer(paragraphs)
 
             # Apply sentence splitter
-            if self.chunk_text:
+            if self.args.chunk_text:
                 nparagraphs = []
                 for paragraph in paragraphs:
                     nparagraphs.extend(
-                        naive_sentence_split(paragraph, self.chunk_length)
+                        naive_sentence_split(paragraph, self.args.chunk_length)
                     )
                 paragraphs = nparagraphs
 
             paragraphs = [p for p in paragraphs if len(p) > 5]
-
-            # Filter out too short samples
-            total_len = sum([len(p) for p in paragraphs])
-            if total_len < self.min_len:
-                continue
-
             text = "\n".join(paragraphs)
             text_hash = hashlib.md5((text.encode())).hexdigest()
 
-            results.append(
-                json.dumps(
-                    {"subset": subset_name, "text": text, "hash": text_hash},
-                    ensure_ascii=False,
+            # Filter out too short samples
+            if len(text) < self.args.min_text_length:
+                continue
+
+            # Filter out redundant samples
+            if (
+                redundancy_filter.get_token_char_ratio(
+                    [
+                        text[i : i + self.args.min_text_length]
+                        for i in range(0, len(text), self.args.min_text_length)
+                    ]
                 )
-            )
-            hashes.append(text_hash)
+                > self.args.sp_filter_ratio
+            ).mean() > 0.10:
+                continue
+
+            # Chunk text if too long
+            if len(text) < self.args.max_text_length:
+                results.append(
+                    json.dumps(
+                        {
+                            "subset": subset_name,
+                            "text": text,
+                            "hash": text_hash,
+                            "ratio": float(
+                                redundancy_filter.get_token_char_ratio([text])[0]
+                            ),
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+                hashes.append(text_hash)
+
+            else:
+                for chunk in naive_sentence_split(text, self.args.max_text_length):
+                    if len(chunk) < self.args.min_text_length:
+                        continue
+
+                    chunk_hash = hashlib.md5((chunk.encode())).hexdigest()
+                    results.append(
+                        json.dumps(
+                            {
+                                "subset": subset_name,
+                                "text": chunk,
+                                "hash": chunk_hash,
+                                "ratio": float(
+                                    redundancy_filter.get_token_char_ratio([chunk])
+                                ),
+                            },
+                            ensure_ascii=False,
+                        )
+                    )
+                    hashes.append(chunk_hash)
 
         if len(results) > 0:
             return hashes, results
@@ -146,6 +182,12 @@ def cli_main():
         help="Minimum length of text to keep (in characters)",
     )
     argparser.add_argument(
+        "--max-text-length",
+        type=int,
+        default=1000_000_000,
+        help="Max length of text, otherwise produce chunks of max-text-length (in characters)",
+    )
+    argparser.add_argument(
         "--chunk-text",
         type=bool,
         default=False,
@@ -160,7 +202,7 @@ def cli_main():
     argparser.add_argument(
         "--max-unk-ratio",
         type=float,
-        default=0.05,
+        default=0.1,
         help="Maximum ratio of unknown tokens to keep a sample (English only)",
     )
     argparser.add_argument(
@@ -177,6 +219,12 @@ def cli_main():
         if path not found, hashlist will be created. 
         If path found, hashlist will be loaded and used to deduplicate. 
         If path is empty, no deduplication will be performed.""",
+    )
+    argparser.add_argument(
+        "--sp-filter-ratio",
+        type=float,
+        default=0.3,
+        help="Maximum ratio of sentencepiece tokens to text length in characters to keep a sample",
     )
 
     args = argparser.parse_args()

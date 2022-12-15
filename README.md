@@ -27,6 +27,11 @@ straw-process-pile \
     --pile-subsets "Books3,Gutenberg (PG-19),OpenWebText2,Pile-CC,Wikipedia (en)"
 ```
 
+Output file is a jsonlines file, each line is a json object with the following keys:
+
+- `text`: the text of the document
+- `subset`: the subset of the pile the document belongs to
+- `hash`: the md5 hash of the document
 
 ## Slurm
 
